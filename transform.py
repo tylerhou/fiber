@@ -1,53 +1,53 @@
 import ast
 from collections.abc import Container
-from utils import dunder_names, is_scope, map_ast, fmap_statements
+import utils
 
 
-def promote_call_expressions(tree: ast.AST, fns: Container[str], names, assignments):
-    """Given an AST, transforms call expressions to functions in fns by
-    promoting them to temporary variables. Appends promoting assingment
+def promote_call_expressions(statement: ast.AST, fns: Container[str], name_iter, assignments):
+    """Given a statement, transforms call expressions to functions in fns by
+    promoting them to temporary variables. Appends promoting assignment
     statements to assignments. Returns the new expression with call expressions
     replaced."""
-    def mapper(tree, field, value):
-        if is_scope(tree) and field == "body":
+    def mapper(statement, field, value):
+        if utils.is_scope(statement) and field == "body":
             # Do not traverse the body of scopes; only promote recursive calls
             # inside the scope header.
             return value
         if isinstance(value, list):
             return [
-                promote_call_expressions(child, fns, names, assignments)
+                promote_call_expressions(child, fns, name_iter, assignments)
                 for child in value
                 if isinstance(child, ast.AST)
             ]
         elif isinstance(value, ast.AST):
-            return promote_call_expressions(value, fns, names, assignments)
+            return promote_call_expressions(value, fns, name_iter, assignments)
         return value
 
-    new_tree = map_ast(tree, mapper)
-    if isinstance(tree, ast.Call) and isinstance(tree.func, ast.Name) and tree.func.id in fns:
-        name = next(names)
+    new_statement = utils.map_statement(statement, mapper)
+    if isinstance(statement, ast.Call) and isinstance(statement.func, ast.Name) and statement.func.id in fns:
+        name = next(name_iter)
         assignments.append(ast.Assign(
-            targets=[ast.Name(id=name, ctx=ast.Store())], value=new_tree))
+            targets=[ast.Name(id=name, ctx=ast.Store())], value=new_statement))
         return ast.Name(id=name, ctx=ast.Load())
-    return new_tree
+    return new_statement
 
 
-def promote_to_temporary(tree: ast.AST, fns: Container[str], names=lambda: dunder_names("tmp")):
+def promote_to_temporary(tree: ast.AST, fns: Container[str]):
     """Given the AST for a function, promotes the results of inner calls to
     functions in fns to temporary variables."""
-    from collections import defaultdict
     assert isinstance(tree, ast.FunctionDef)
+    name_iter = utils.dunder_names()
 
-    # assignment_nodes[scope][line] contains assignment nodes that should be
-    # inserted before that line.
-    assignment_nodes = defaultdict(lambda: defaultdict(list))
-    names_iter = names()
+    def promote_mapper(stmt):
+        statements = []
+        statements.append(promote_call_expressions(
+            stmt, fns, name_iter, statements))
+        return statements
+    tree = utils.map_scope(tree, promote_mapper)
 
-    def mapper(stmt):
-        assignments = []
-        result = promote_call_expressions(stmt, fns, names_iter, assignments)
-        assignments.append(result)
-        return assignments
-
-    tree = fmap_statements(tree, mapper)
-    return tree
+    trivial_temps = utils.trivial_temporaries(tree)
+    assignments = utils.find_last_assignments(tree, set(trivial_temps))
+    assignments_values = set(assignments.values())
+    def remove_trivial_mapper(stmt):
+        return [] if stmt in assignments_values else [utils.replace_variable(stmt, assignments)]
+    return utils.map_scope(tree, remove_trivial_mapper)

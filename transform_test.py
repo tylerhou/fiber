@@ -8,13 +8,12 @@ def foo():
     if t == 1:
         return bar(bar(bar(1), 3), 5) + bar(baz(t), 4)
     if t == bar(10):
-        return bar(baz(t), 2) + 1
+        return bar(baz(t), 2)
 """.strip()
 
 want = """
 def foo():
-    __$tmp0__ = bar(2)
-    t = __$tmp0__
+    t = bar(2)
     if t == 1:
         __$tmp1__ = bar(1)
         __$tmp2__ = bar(__$tmp1__, 3)
@@ -23,8 +22,7 @@ def foo():
         return __$tmp3__ + __$tmp4__
     __$tmp5__ = bar(10)
     if t == __$tmp5__:
-        __$tmp6__ = bar(baz(t), 2)
-        return __$tmp6__ + 1
+        return bar(baz(t), 2)
 """.strip()
 
 
