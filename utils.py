@@ -98,3 +98,30 @@ def replace_variable(statement, assignments):
             statement.value.id in assignments:
         return map_statement(statement, mapper)
     return statement
+
+
+def make_assign(target, value):
+    return ast.Assign(targets=[ast.Name(id=target, ctx=ast.Store())], value=value)
+
+
+def make_call(func: str, *args):
+    return ast.Call(func=ast.Name(id=func, ctx=ast.Load()), args=args, keywords=[])
+
+
+def make_lookup(name: str):
+    return ast.Name(id=name, ctx=ast.Load())
+
+
+def make_for_try(loop_target, iter_n, test_n):
+    return ast.Try(
+        body=[ast.Assign(targets=[loop_target], value=make_call(
+            "next", make_lookup(iter_n)))],
+        handlers=[
+            ast.ExceptHandler(type=make_lookup("StopIteration"),
+                              body=[
+                                  make_assign(
+                                      test_n, ast.Constant(value=False)),
+                                  ast.Continue()
+            ])],
+        orelse=[],
+        finalbody=[])

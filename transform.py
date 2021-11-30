@@ -26,28 +26,51 @@ def promote_call_expressions(statement: ast.AST, fns: Container[str], name_iter,
     new_statement = utils.map_statement(statement, mapper)
     if isinstance(statement, ast.Call) and isinstance(statement.func, ast.Name) and statement.func.id in fns:
         name = next(name_iter)
-        assignments.append(ast.Assign(
-            targets=[ast.Name(id=name, ctx=ast.Store())], value=new_statement))
-        return ast.Name(id=name, ctx=ast.Load())
+        assignments.append(utils.make_assign(name, new_statement))
+        return utils.make_lookup(name)
     return new_statement
 
 
-def promote_to_temporary(tree: ast.AST, fns: Container[str]):
+def promote_to_temporary(fn_ast: ast.AST, fns: Container[str], name_iter):
     """Given the AST for a function, promotes the results of inner calls to
     functions in fns to temporary variables."""
-    assert isinstance(tree, ast.FunctionDef)
-    name_iter = utils.dunder_names()
+    assert isinstance(fn_ast, ast.FunctionDef)
 
     def promote_mapper(stmt):
         statements = []
         statements.append(promote_call_expressions(
             stmt, fns, name_iter, statements))
         return statements
-    tree = utils.map_scope(tree, promote_mapper)
+    fn_ast = utils.map_scope(fn_ast, promote_mapper)
 
-    trivial_temps = utils.trivial_temporaries(tree)
-    assignments = utils.find_last_assignments(tree, set(trivial_temps))
+    trivial_temps = utils.trivial_temporaries(fn_ast)
+    assignments = utils.find_last_assignments(fn_ast, set(trivial_temps))
     assignments_values = set(assignments.values())
+
     def remove_trivial_mapper(stmt):
         return [] if stmt in assignments_values else [utils.replace_variable(stmt, assignments)]
-    return utils.map_scope(tree, remove_trivial_mapper)
+    return utils.map_scope(fn_ast, remove_trivial_mapper)
+
+
+def rewrite_for(fn_ast: ast.AST, name_iter):
+    """Converts for loops to while loops."""
+    def mapper(stmt):
+        if isinstance(stmt, ast.For):
+            iter_n, test_n = next(name_iter), next(name_iter)
+            body = [utils.make_for_try(
+                stmt.target, iter_n, test_n)] + stmt.body
+            return [
+                utils.make_assign(iter_n, utils.make_call("iter", stmt.iter)),
+                utils.make_assign(test_n, ast.Constant(value=True)),
+                ast.While(test=utils.make_lookup(test_n),
+                          body=body, orelse=stmt.orelse),
+            ]
+        return [stmt]
+    return utils.map_scope(fn_ast, mapper)
+
+def rewrite_while():
+    pass
+
+def rewrite_boolops(fn_ast: ast.AST):
+    """Rewrites boolean expressions as if statements so promotion to
+    temporaries doesn't change evaluation semantics."""
