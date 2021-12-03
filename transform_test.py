@@ -3,16 +3,20 @@ import unittest
 import transform
 import utils
 
-promote_to_temporary_source = """
+
+class TestTransform(unittest.TestCase):
+
+    def test_promote_to_temporary(self):
+        promote_to_temporary_source = """
 def foo():
     t = bar(2)
     if t == 1:
         return bar(bar(bar(1), 3), 5) + bar(baz(t), 4)
     if t == bar(10):
         return bar(baz(t), 2)
-""".strip()
+        """.strip()
 
-promote_to_temporary_want = """
+        promote_to_temporary_want = """
 def foo():
     t = bar(2)
     if t == 1:
@@ -24,9 +28,17 @@ def foo():
     __$tmp5__ = bar(10)
     if t == __$tmp5__:
         return bar(baz(t), 2)
-""".strip()
+        """.strip()
 
-rewrite_for_source = """
+        tree = ast.parse(promote_to_temporary_source).body[0]
+        tree = transform.promote_to_temporary(
+            tree, ["bar"], utils.dunder_names())
+        tree = ast.fix_missing_locations(tree)
+        result = ast.unparse(tree)
+        self.assertEqual(result, promote_to_temporary_want)
+
+    def test_for_to_while(self):
+        for_to_while_source = """
 def bar():
     pre = 1
     for i in range(10):
@@ -37,9 +49,9 @@ def bar():
         print('else')
     post = 1
     return pre + post
-""".strip()
+        """.strip()
 
-rewrite_for_want = """
+        for_to_while_want = """
 def bar():
     pre = 1
     __$tmp0__ = iter(range(10))
@@ -57,25 +69,13 @@ def bar():
         print('else')
     post = 1
     return pre + post
-""".strip()
+        """.strip()
 
-
-class TestTransform(unittest.TestCase):
-
-    def test_promote_to_temporary(self):
-        tree = ast.parse(promote_to_temporary_source).body[0]
-        tree = transform.promote_to_temporary(
-            tree, ["bar"], utils.dunder_names())
+        tree = ast.parse(for_to_while_source).body[0]
+        tree = transform.for_to_while(tree, utils.dunder_names())
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
-        self.assertEqual(result, promote_to_temporary_want)
-
-    def test_rewrite_for(self):
-        tree = ast.parse(rewrite_for_source).body[0]
-        tree = transform.rewrite_for(tree, utils.dunder_names())
-        tree = ast.fix_missing_locations(tree)
-        result = ast.unparse(tree)
-        self.assertEqual(result, rewrite_for_want)
+        self.assertEqual(result, for_to_while_want)
 
 
 if __name__ == '__main__':
