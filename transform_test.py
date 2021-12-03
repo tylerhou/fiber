@@ -77,6 +77,37 @@ def bar():
         result = ast.unparse(tree)
         self.assertEqual(result, for_to_while_want)
 
+    def test_promote_while_cond(self):
+        promote_while_cond_source = """
+def bar():
+    p = [1, 2, 3]
+    while len(p) > 0:
+        t = p.pop()
+    else:
+        print('else')
+    post = 1
+    return t + post
+        """.strip()
+
+        promote_while_cond_want = """
+def bar():
+    p = [1, 2, 3]
+    __$tmp0__ = len(p) > 0
+    while __$tmp0__:
+        t = p.pop()
+        __$tmp0__ = len(p) > 0
+    else:
+        print('else')
+    post = 1
+    return t + post
+        """.strip()
+
+        tree = ast.parse(promote_while_cond_source).body[0]
+        tree = transform.promote_while_cond(tree, utils.dunder_names())
+        tree = ast.fix_missing_locations(tree)
+        result = ast.unparse(tree)
+        self.assertEqual(result, promote_while_cond_want)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -45,24 +45,32 @@ def promote_to_temporary(fn_ast: ast.AST, fns: Container[str], name_iter):
     return utils.map_scope(fn_ast, remove_trivial_mapper)
 
 
-def rewrite_for(fn_ast: ast.AST, name_iter):
-    """Converts for loops to while loops."""
+def for_to_while(fn_ast: ast.AST, name_iter):
+    """For a function AST, converts for loops to equivalent while loops."""
     def mapper(stmt):
-        if isinstance(stmt, ast.For):
-            iter_n, test_n = next(name_iter), next(name_iter)
-            body = [utils.make_for_try(
-                stmt.target, iter_n, test_n)] + stmt.body
-            return [
-                utils.make_assign(iter_n, utils.make_call("iter", stmt.iter)),
-                utils.make_assign(test_n, ast.Constant(value=True)),
-                ast.While(test=utils.make_lookup(test_n),
-                          body=body, orelse=stmt.orelse),
-            ]
-        return [stmt]
+        if not isinstance(stmt, ast.For):
+            return [stmt]
+        iter_n, test_n = next(name_iter), next(name_iter)
+        body = [utils.make_for_try(stmt.target, iter_n, test_n)] + stmt.body
+        return [
+            utils.make_assign(iter_n, utils.make_call("iter", stmt.iter)),
+            utils.make_assign(test_n, ast.Constant(value=True)),
+            ast.While(test=utils.make_lookup(test_n),
+                      body=body, orelse=stmt.orelse),
+        ]
     return utils.map_scope(fn_ast, mapper)
 
-def rewrite_while():
-    pass
+
+def promote_while_cond(fn_ast: ast.AST, name_iter):
+    """For a function AST, promotes the test in while loops to a variable."""
+    def mapper(stmt):
+        if not isinstance(stmt, ast.While):
+            return [stmt]
+        condition_n = next(name_iter)
+        test_assign = utils.make_assign(condition_n, stmt.test)
+        body = stmt.body + [test_assign]
+        return [test_assign, ast.While(test=utils.make_lookup(condition_n), body=body, orelse=stmt.orelse)]
+    return utils.map_scope(fn_ast, mapper)
 
 def rewrite_boolops(fn_ast: ast.AST):
     """Rewrites boolean expressions as if statements so promotion to
