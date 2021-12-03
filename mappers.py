@@ -1,13 +1,12 @@
 import ast
 from collections.abc import Container
 import utils
-from expressions import promote_call_expressions
+from expressions import promote_call_expressions, promote_boolean_expression_operands
 
 
 def promote_to_temporary_m(fns: Container[str], name_iter):
     """Creates a function mapper that promotes the results of inner calls to
     functions in fns to temporary variables."""
-
     def promote_mapper(stmt):
         stmts = []
         stmts.append(promote_call_expressions(stmt, fns, name_iter, stmts))
@@ -16,6 +15,7 @@ def promote_to_temporary_m(fns: Container[str], name_iter):
 
 
 def remove_trivial_m(fn_ast: ast.AST):
+    """Creates a function mapper that removes trivial assignments."""
     trivial_temps = utils.trivial_temporaries(fn_ast)
     assignments = utils.find_last_assignments(fn_ast, set(trivial_temps))
     assignments_values = set(assignments.values())
@@ -55,6 +55,12 @@ def promote_while_cond_m(name_iter):
     return mapper
 
 
-def rewrite_boolops(fn_ast: ast.AST):
-    """Rewrites boolean expressions as if statements so promotion to
-    temporaries doesn't change evaluation semantics."""
+def bool_exps_to_if_m(name_iter):
+    """Creates a function mapper that rewrites boolean expressions as if
+    statements so promotion to temporaries doesn't change evaluation order."""
+    def mapper(stmt):
+        stmts = []
+        stmts.append(promote_boolean_expression_operands(
+            stmt, name_iter, stmts))
+        return stmts
+    return mapper

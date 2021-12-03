@@ -149,6 +149,39 @@ def bar():
         result = map_function(source, mapper)
         self.assertEqual(result, want)
 
+    def test_bool_exps_to_if_m(self):
+        source = """
+def bar():
+    a = first() and (second() or third()) and fourth()
+    b = 1 + (foo() or baz())
+    return a or b
+        """.strip()
+
+        want = """
+def bar():
+    __tmp0__ = first()
+    if __tmp0__:
+        __tmp1__ = second()
+        if not __tmp1__:
+            __tmp1__ = third()
+        __tmp0__ = __tmp1__
+    if __tmp0__:
+        __tmp0__ = fourth()
+    a = __tmp0__
+    __tmp2__ = foo()
+    if not __tmp2__:
+        __tmp2__ = baz()
+    b = 1 + __tmp2__
+    __tmp3__ = a
+    if not __tmp3__:
+        __tmp3__ = b
+    return __tmp3__
+        """.strip()
+
+        mapper = mappers.bool_exps_to_if_m(utils.dunder_names())
+        result = map_function(source, mapper)
+        self.assertEqual(result, want)
+
 
 if __name__ == '__main__':
     unittest.main()

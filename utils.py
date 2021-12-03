@@ -36,10 +36,10 @@ def map_expression(statement: ast.AST, fn):
         if is_scope(statement) and field == "body":
             result = value
         elif isinstance(value, list):
-            result = [fn(statement, field, v)
+            result = [fn(field, v)
                       for v in value if isinstance(v, ast.AST)]
         elif isinstance(value, ast.AST):
-            result = fn(statement, field, value)
+            result = fn(field, value)
         kwargs[field] = result
     return type(statement)(**kwargs)
 
@@ -101,10 +101,10 @@ def find_last_assignments(fn, variables):
 
 
 def replace_variable(statement, assignments):
-    def mapper(stmt, field, value):
+    def mapper(field, expression):
         if field == "value":
-            return assignments[stmt.value.id].value
-        return value
+            return assignments[expression.id].value
+        return expression
 
     if isinstance(statement, ast.Return) and \
             isinstance(statement.value, ast.Name) and \
@@ -129,6 +129,10 @@ def make_call(func: str, *args):
 
 def make_lookup(name: str):
     return ast.Name(id=name, ctx=ast.Load())
+
+
+def make_not(exp: ast.AST):
+    return ast.UnaryOp(op=ast.Not(), operand=exp)
 
 
 def make_for_try(loop_target, iter_n, test_n):
