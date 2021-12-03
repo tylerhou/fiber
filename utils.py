@@ -23,11 +23,24 @@ def is_scope(tree):
     return any(isinstance(tree, scope_type) for scope_type in FN_INNER_SCOPE_NODES)
 
 
-def map_statement(statement: ast.AST, fn):
-    """Transforms a statement's fields by the mapping function."""
+def map_expression(statement: ast.AST, fn):
+    """Recursively transforms an expression by applying the mapping function to
+    all attributes that are AST nodes.
+
+    Does not recursively transform scope bodies (while, for, try) as one would
+    usually call this function from a mapper in map_scope, which itself already
+    iterates through scope bodies."""
     kwargs = {}
     for field, value in ast.iter_fields(statement):
-        kwargs[field] = fn(statement, field, value)
+        result = value
+        if is_scope(statement) and field == "body":
+            result = value
+        elif isinstance(value, list):
+            result = [fn(statement, field, v)
+                      for v in value if isinstance(v, ast.AST)]
+        elif isinstance(value, ast.AST):
+            result = fn(statement, field, value)
+        kwargs[field] = result
     return type(statement)(**kwargs)
 
 
@@ -90,13 +103,13 @@ def replace_variable(statement, assignments):
     if isinstance(statement, ast.Return) and \
             isinstance(statement.value, ast.Name) and \
             statement.value.id in assignments:
-        return map_statement(statement, mapper)
+        return map_expression(statement, mapper)
 
     if (isinstance(statement, ast.Assign) or
         isinstance(statement, ast.AnnAssign)) and \
         isinstance(statement.value, ast.Name) and \
             statement.value.id in assignments:
-        return map_statement(statement, mapper)
+        return map_expression(statement, mapper)
     return statement
 
 

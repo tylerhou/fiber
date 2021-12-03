@@ -8,22 +8,15 @@ def promote_call_expressions(statement: ast.AST, fns: Container[str], name_iter,
     promoting them to temporary variables. Appends promoting assignment
     statements to assignments. Returns the new expression with call expressions
     replaced."""
-    def mapper(statement, field, value):
-        if utils.is_scope(statement) and field == "body":
-            # Do not traverse the body of scopes; only promote recursive calls
-            # inside the scope header.
-            return value
-        if isinstance(value, list):
-            return [
-                promote_call_expressions(child, fns, name_iter, assignments)
-                for child in value
-                if isinstance(child, ast.AST)
-            ]
-        elif isinstance(value, ast.AST):
-            return promote_call_expressions(value, fns, name_iter, assignments)
-        return value
+    def map_attributes(statement, field, value):
+        return promote_call_expressions(value, fns, name_iter, assignments)
 
-    new_statement = utils.map_statement(statement, mapper)
+    # Recursively map the statement's attributes (e.g. subexpressions).
+    new_statement = utils.map_expression(statement, map_attributes)
+
+    # If the function is a special function, then lift the expression to a
+    # temporary. Also, replace the current expression with a reference to that
+    # temporary.
     if isinstance(statement, ast.Call) and isinstance(statement.func, ast.Name) and statement.func.id in fns:
         name = next(name_iter)
         assignments.append(utils.make_assign(name, new_statement))
