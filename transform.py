@@ -24,29 +24,30 @@ def promote_call_expressions(statement: ast.AST, fns: Container[str], name_iter,
     return new_statement
 
 
-def promote_to_temporary(fn_ast: ast.AST, fns: Container[str], name_iter):
-    """Given the AST for a function, promotes the results of inner calls to
+def promote_to_temporary_m(fns: Container[str], name_iter):
+    """Creates a function mapper that promotes the results of inner calls to
     functions in fns to temporary variables."""
-    assert isinstance(fn_ast, ast.FunctionDef)
 
     def promote_mapper(stmt):
         statements = []
         statements.append(promote_call_expressions(
             stmt, fns, name_iter, statements))
         return statements
-    fn_ast = utils.map_scope(fn_ast, promote_mapper)
+    return promote_mapper
 
+def remove_trivial_m(fn_ast: ast.AST):
     trivial_temps = utils.trivial_temporaries(fn_ast)
     assignments = utils.find_last_assignments(fn_ast, set(trivial_temps))
     assignments_values = set(assignments.values())
 
     def remove_trivial_mapper(stmt):
         return [] if stmt in assignments_values else [utils.replace_variable(stmt, assignments)]
-    return utils.map_scope(fn_ast, remove_trivial_mapper)
+    return remove_trivial_mapper
 
 
-def for_to_while(fn_ast: ast.AST, name_iter):
-    """For a function AST, converts for loops to equivalent while loops."""
+def for_to_while_m(name_iter):
+    """Creates a function mapper that converts for loops to equivalent while
+    loops."""
     def mapper(stmt):
         if not isinstance(stmt, ast.For):
             return [stmt]
@@ -58,11 +59,12 @@ def for_to_while(fn_ast: ast.AST, name_iter):
             ast.While(test=utils.make_lookup(test_n),
                       body=body, orelse=stmt.orelse),
         ]
-    return utils.map_scope(fn_ast, mapper)
+    return mapper
 
 
-def promote_while_cond(fn_ast: ast.AST, name_iter):
-    """For a function AST, promotes the test in while loops to a variable."""
+def promote_while_cond_m(name_iter):
+    """Creates a function mapper that promotes the test in while loops to a
+    variable."""
     def mapper(stmt):
         if not isinstance(stmt, ast.While):
             return [stmt]
@@ -70,7 +72,7 @@ def promote_while_cond(fn_ast: ast.AST, name_iter):
         test_assign = utils.make_assign(condition_n, stmt.test)
         body = stmt.body + [test_assign]
         return [test_assign, ast.While(test=utils.make_lookup(condition_n), body=body, orelse=stmt.orelse)]
-    return utils.map_scope(fn_ast, mapper)
+    return mapper
 
 def rewrite_boolops(fn_ast: ast.AST):
     """Rewrites boolean expressions as if statements so promotion to

@@ -9,10 +9,10 @@ FN_INNER_SCOPE_NODES = [ast.For, ast.While, ast.If, ast.While]
 
 def dunder_names():
     for i in itertools.count():
-        yield f"__$tmp{i}__"
+        yield f"__tmp{i}__"
 
 
-dunder_regex = re.compile(r'__\$tmp\d+__')
+dunder_regex = re.compile(r'__tmp\d+__')
 
 
 def is_temporary(name):
@@ -68,7 +68,13 @@ def iter_scope(scope):
 
 
 def trivial_temporaries(fn):
-    """Yields trivial temporaries (e.g. `return __$tmpX__`)"""
+    """Yields trivial temporaries.
+
+    Temporaries are trivial if they are directly assigned to another variable
+    or if they are returned; e.g.
+        t = __tmp1__
+        return __tmp2__
+    """
     for statement in iter_scope(fn):
         if isinstance(statement, ast.Return) and \
                 isinstance(statement.value, ast.Name) and \
