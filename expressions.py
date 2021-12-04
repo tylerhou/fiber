@@ -68,3 +68,18 @@ def promote_boolean_expression_operands(expression: ast.AST, name_iter, lines):
 
     # Recursively map the expression's attributes (e.g. subexpressions).
     return utils.map_expression(expression, map_attributes)
+
+
+FRAME_LOCAL_NAME = "frame"
+
+
+def promote_variable_access(expression: ast.AST, name_fn):
+    def map_attributes(field, expression):
+        if isinstance(expression, ast.Name) and (name := name_fn(expression.id)) is not None:
+            return ast.Subscript(
+                ctx=ast.Load(),
+                slice=ast.Constant(value=name),
+                value=ast.Name(id=FRAME_LOCAL_NAME, ctx=ast.Load())
+            )
+        return promote_variable_access(expression, name_fn)
+    return utils.map_expression(expression, map_attributes)

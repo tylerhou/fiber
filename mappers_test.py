@@ -182,6 +182,29 @@ def bar():
         result = map_function(source, mapper)
         self.assertEqual(result, want)
 
+    def test_lift_to_frame_m(self):
+        source = """
+def bar(arg1, arg2):
+    a = arg1 + arg2
+    if a == 2:
+        return arg1 + arg2
+    b = a + (foo() or baz())
+    return a + b
+        """.strip()
+
+        want = """
+def bar(arg1, arg2):
+    frame['a'] = frame['arg1'] + frame['arg2']
+    if frame['a'] == 2:
+        return frame['arg1'] + frame['arg2']
+    frame['b'] = frame['a'] + (foo() or baz())
+    return frame['a'] + frame['b']
+        """.strip()
+        mapper = mappers.lift_to_frame_m(
+            lambda x: x if x in ("a", "b", "arg1", "arg2") else None)
+        result = map_function(source, mapper)
+        self.assertEqual(result, want)
+
 
 if __name__ == '__main__':
     unittest.main()

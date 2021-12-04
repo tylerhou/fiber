@@ -1,7 +1,8 @@
 import ast
 from collections.abc import Container
 import utils
-from expressions import promote_call_expressions, promote_boolean_expression_operands
+from itertools import count
+import expressions
 
 
 def promote_to_temporary_m(fns: Container[str], name_iter):
@@ -9,7 +10,8 @@ def promote_to_temporary_m(fns: Container[str], name_iter):
     functions in fns to temporary variables."""
     def promote_mapper(stmt):
         stmts = []
-        stmts.append(promote_call_expressions(stmt, fns, name_iter, stmts))
+        stmts.append(expressions.promote_call_expressions(
+            stmt, fns, name_iter, stmts))  # mutates stmts
         return stmts
     return promote_mapper
 
@@ -60,7 +62,15 @@ def bool_exps_to_if_m(name_iter):
     statements so promotion to temporaries doesn't change evaluation order."""
     def mapper(stmt):
         stmts = []
-        stmts.append(promote_boolean_expression_operands(
-            stmt, name_iter, stmts))
+        stmts.append(expressions.promote_boolean_expression_operands(
+            stmt, name_iter, stmts))  # mutates stmts
         return stmts
+    return mapper
+
+
+def lift_to_frame_m(name_fn=lambda x: x):
+    """Creates a function mapper that replaces all accesses where name_fn
+    returns not None to loads and stores in a frame object."""
+    def mapper(stmt):
+        return [expressions.promote_variable_access(stmt, name_fn)]
     return mapper
