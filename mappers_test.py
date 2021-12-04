@@ -1,15 +1,17 @@
 import ast
 import unittest
-import transform
+import mappers
 import utils
 
-def transform_function(source, mapper):
-        tree = ast.parse(source).body[0]
-        tree = utils.map_scope(tree, mapper)
-        tree = ast.fix_missing_locations(tree)
-        return ast.unparse(tree)
 
-class TestTransform(unittest.TestCase):
+def map_function(source, mapper):
+    tree = ast.parse(source).body[0]
+    tree = utils.map_scope(tree, mapper)
+    tree = ast.fix_missing_locations(tree)
+    return ast.unparse(tree)
+
+
+class TestMappers(unittest.TestCase):
 
     def test_promote_to_temporary_m(self):
         source = """
@@ -37,8 +39,8 @@ def foo():
         return __tmp6__
         """.strip()
 
-        mapper = transform.promote_to_temporary_m(["bar"], utils.dunder_names())
-        result = transform_function(source, mapper)
+        mapper = mappers.promote_to_temporary_m(["bar"], utils.dunder_names())
+        result = map_function(source, mapper)
         self.assertEqual(result, want)
 
     def test_remove_trivial_m(self):
@@ -74,7 +76,7 @@ def foo():
 
         tree = ast.parse(source).body[0]
         # Remove trivial needs to preprocess the tree to find trivial variables.
-        mapper = transform.remove_trivial_m(tree)
+        mapper = mappers.remove_trivial_m(tree)
         tree = utils.map_scope(tree, mapper)
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
@@ -114,8 +116,8 @@ def bar():
     return pre + post
         """.strip()
 
-        mapper = transform.for_to_while_m(utils.dunder_names())
-        result = transform_function(source, mapper)
+        mapper = mappers.for_to_while_m(utils.dunder_names())
+        result = map_function(source, mapper)
         self.assertEqual(result, want)
 
     def test_promote_while_cond_m(self):
@@ -143,8 +145,8 @@ def bar():
     return t + post
         """.strip()
 
-        mapper = transform.promote_while_cond_m(utils.dunder_names())
-        result = transform_function(source, mapper)
+        mapper = mappers.promote_while_cond_m(utils.dunder_names())
+        result = map_function(source, mapper)
         self.assertEqual(result, want)
 
 
