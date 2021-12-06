@@ -133,3 +133,35 @@ def make_for_try(loop_target, iter_n, test_n):
             ])],
         orelse=[],
         finalbody=[])
+
+
+def is_block(block: ast.AST):
+    return hasattr(block, "body") and isinstance(block.body, list)
+
+
+def _locals_impl(fn: ast.AST):
+    assert isinstance(fn, ast.FunctionDef)
+    args = fn.args
+    for arg in itertools.chain(args.posonlyargs, args.args, args.kwonlyargs, (args.vararg, args.kwarg)):
+        if arg is not None:
+            yield arg.arg
+
+    def helper(block: ast.AST):
+        for node in block.body:
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        yield target.id
+            if isinstance(node, ast.AnnAssign) or \
+                    isinstance(node, ast.AugAssign) or \
+                    isinstance(node, ast.NamedExpr):
+                if isinstance(node.target, ast.Name):
+                    yield node.target.id
+            if is_block(node) and not isinstance(node, ast.FunctionDef):
+                yield from helper(node)
+    yield from helper(fn)
+
+
+def locals(fn: ast.AST):
+    """Returns a set of all function local variables."""
+    return set(_locals_impl(fn))

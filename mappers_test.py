@@ -82,6 +82,28 @@ def foo():
         result = ast.unparse(tree)
         self.assertEqual(result, want)
 
+    def test_remove_trivial_m_tail_call(self):
+        source = """
+def sum(lst, acc):
+    if not lst:
+        return acc
+    __tmp0__ = sum(lst[1:], acc + lst[0])
+    return __tmp0__
+        """.strip()
+
+        want = """
+def sum(lst, acc):
+    if not lst:
+        return acc
+    return sum(lst[1:], acc + lst[0])
+        """.strip()
+        tree = ast.parse(source).body[0]
+        mapper = mappers.remove_trivial_m(tree)
+        tree = mappers.map_scope(tree, mapper)
+        tree = ast.fix_missing_locations(tree)
+        result = ast.unparse(tree)
+        self.assertEqual(result, want)
+
     def test_for_to_while_m(self):
         source = """
 def bar():

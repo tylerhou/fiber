@@ -1,6 +1,5 @@
 import ast
 from collections.abc import Container
-from itertools import count
 
 import expressions
 import utils
@@ -27,7 +26,7 @@ def promote_to_temporary_m(fns: Container[str], name_iter):
     def promote_mapper(stmt):
         stmts = []
         stmts.append(expressions.promote_call_expressions(
-            stmt, fns, name_iter, stmts))  # mutates stmts
+            stmt, fns, name_iter, stmts))  # Mutates stmts
         return stmts
     return promote_mapper
 
@@ -44,8 +43,7 @@ def remove_trivial_m(fn_ast: ast.AST):
 
 
 def for_to_while_m(name_iter):
-    """Creates a function mapper that converts for loops to equivalent while
-    loops."""
+    """Creates a function mapper that converts for loops to equivalent while loops."""
     def mapper(stmt):
         if not isinstance(stmt, ast.For):
             return [stmt]
@@ -61,8 +59,7 @@ def for_to_while_m(name_iter):
 
 
 def promote_while_cond_m(name_iter):
-    """Creates a function mapper that promotes the test in while loops to a
-    variable."""
+    """Creates a function mapper that promotes the test in while loops to a variable."""
     def mapper(stmt):
         if not isinstance(stmt, ast.While):
             return [stmt]
@@ -79,7 +76,7 @@ def bool_exps_to_if_m(name_iter):
     def mapper(stmt):
         stmts = []
         stmts.append(expressions.promote_boolean_expression_operands(
-            stmt, name_iter, stmts))  # mutates stmts
+            stmt, name_iter, stmts))  # Mutates stmts
         return stmts
     return mapper
 
