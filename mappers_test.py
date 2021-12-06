@@ -6,7 +6,7 @@ import utils
 
 def map_function(source, mapper):
     tree = ast.parse(source).body[0]
-    tree = utils.map_scope(tree, mapper)
+    tree = mappers.map_scope(tree, mapper)
     tree = ast.fix_missing_locations(tree)
     return ast.unparse(tree)
 
@@ -77,7 +77,7 @@ def foo():
         tree = ast.parse(source).body[0]
         # Remove trivial needs to preprocess the tree to find trivial variables.
         mapper = mappers.remove_trivial_m(tree)
-        tree = utils.map_scope(tree, mapper)
+        tree = mappers.map_scope(tree, mapper)
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
         self.assertEqual(result, want)

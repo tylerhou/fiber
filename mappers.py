@@ -1,8 +1,24 @@
 import ast
 from collections.abc import Container
-import utils
 from itertools import count
+
 import expressions
+import utils
+
+
+def map_scope(scope, fn):
+    """Applies the mapping function to every statement in the scope.
+
+    The mapping function should return a list of statements; the returned
+    statements will be flattened together."""
+    kwargs = {field: value for field, value in ast.iter_fields(scope)}
+    body = []
+    for stmt in scope.body:
+        body.extend(fn(stmt))
+        if utils.is_scope(stmt):
+            body[-1] = map_scope(body[-1], fn)
+    kwargs["body"] = body
+    return type(scope)(**kwargs)
 
 
 def promote_to_temporary_m(fns: Container[str], name_iter):
