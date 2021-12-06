@@ -77,7 +77,7 @@ def promote_variable_access(expression: ast.AST, name_fn):
     def map_attributes(field, expression):
         if isinstance(expression, ast.Name) and (name := name_fn(expression.id)) is not None:
             return ast.Subscript(
-                ctx=ast.Load(),
+                ctx=expression.ctx,
                 slice=ast.Constant(value=name),
                 value=ast.Name(id=FRAME_LOCAL_NAME, ctx=ast.Load())
             )

@@ -2,7 +2,7 @@ import ast
 from typing import List, Callable, Iterable
 import utils
 
-PC_LOCAL_NAME = "pc"
+PC_LOCAL_NAME = "__pc"
 
 
 def is_supported_jump_block(b: ast.AST):

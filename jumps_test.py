@@ -26,42 +26,42 @@ def bar(hello, world):
 
         want = """
 def bar(hello, world):
-    if pc == 0:
+    if __pc == 0:
         for i in range(10):
             print(hello)
-        pc = 1
-    if pc == 1:
+        __pc = 1
+    if __pc == 1:
         a = hello + world
-        pc = 2
-    if 2 <= pc < 5:
+        __pc = 2
+    if 2 <= __pc < 5:
         while b < a:
-            if pc == 2:
+            if __pc == 2:
                 print()
-                pc = 3
-            if pc == 3:
+                __pc = 3
+            if __pc == 3:
                 b = a * a
-                pc = 4
-            if pc == 4:
+                __pc = 4
+            if __pc == 4:
                 a = a + b
-                pc = 5
-            pc = 2
-        pc = 5
-    if 5 <= pc < 7:
+                __pc = 5
+            __pc = 2
+        __pc = 5
+    if 5 <= __pc < 7:
         if True:
-            if pc == 5:
+            if __pc == 5:
                 d = a + b
-                pc = 6
-            if pc == 6:
+                __pc = 6
+            if __pc == 6:
                 d = d * 2
-                pc = 7
-        pc = 7
-    if pc == 7:
+                __pc = 7
+        __pc = 7
+    if __pc == 7:
         d = d + 1
-        pc = 8
-    if pc == 8:
+        __pc = 8
+    if __pc == 8:
         d = d + 2
         return d
-        pc = 9
+        __pc = 9
         """.strip()
 
         tree = ast.parse(source)
@@ -75,7 +75,7 @@ def bar(hello, world):
 
     def test_equivalent(self):
         source = """
-def fib(pc, n):
+def fib(__pc, n):
     curr = 0
     next = 1
     for i in range(n):
