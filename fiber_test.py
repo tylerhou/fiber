@@ -27,10 +27,10 @@ def __fiberfn_fib(frame):
                 frame['__pc'] = 1
                 return RetOp(value=1)
         frame['__pc'] = 1
-        return CallOp(func='fib', args=[frame['n'] - 1], keywords={}, variable='__tmp0__')
+        return CallOp(func='fib', args=[frame['n'] - 1], kwargs={}, ret_variable='__tmp0__')
     if frame['__pc'] == 1:
         frame['__pc'] = 2
-        return CallOp(func='fib', args=[], keywords={'n': frame['n'] - 2}, variable='__tmp1__')
+        return CallOp(func='fib', args=[], kwargs={'n': frame['n'] - 2}, ret_variable='__tmp1__')
     if frame['__pc'] == 2:
         frame['__pc'] = 3
         return RetOp(value=frame['__tmp0__'] + frame['__tmp1__'])
@@ -52,6 +52,10 @@ def __fiberfn_sum(frame):
                 frame['__pc'] = 1
                 return RetOp(value=frame['acc'])
         frame['__pc'] = 1
-        return TailCallOp(func='sum', args=[frame['lst'][1:], frame['acc'] + frame['lst'][0]], keywords={})
+        return TailCallOp(func='sum', args=[frame['lst'][1:], frame['acc'] + frame['lst'][0]], kwargs={})
         """.strip()
         self.assertEqual(want, sum.__fibercode__)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -45,15 +45,15 @@ def make_prev_dict(block: ast.AST):
 class CallOp:
     func: Any
     args: List[Any]
-    keywords: Dict[Any, Any]
-    variable: str
+    kwargs: Dict[Any, Any]
+    ret_variable: str
 
 
 @dataclass
 class TailCallOp:
     func: Any
     args: List[Any]
-    keywords: Dict[Any, Any]
+    kwargs: Dict[Any, Any]
 
 
 @dataclass
@@ -118,9 +118,9 @@ def make_callop_expr(variable: ast.Constant, call: ast.Call):
                     value=call.func.id)),
                 ast.keyword(arg="args", value=ast.List(
                     elts=call.args, ctx=ast.Load())),
-                ast.keyword(arg="keywords", value=ast.Dict(
+                ast.keyword(arg="kwargs", value=ast.Dict(
                     keys=[ast.Constant(k.arg) for k in call.keywords], values=[k.value for k in call.keywords])),
-                ast.keyword(arg="variable", value=variable),
+                ast.keyword(arg="ret_variable", value=variable),
             ]
         )
     )
@@ -136,7 +136,7 @@ def make_tailcallop_expr(call: ast.Call):
                     value=call.func.id)),
                 ast.keyword(arg="args", value=ast.List(
                     elts=call.args, ctx=ast.Load())),
-                ast.keyword(arg="keywords", value=ast.Dict(
+                ast.keyword(arg="kwargs", value=ast.Dict(
                     keys=[ast.Constant(k.arg) for k in call.keywords], values=[k.value for k in call.keywords])),
             ]
         )
@@ -184,7 +184,7 @@ def compile_tree(tree: ast.AST, fn):
 
 
 # This is hacky...
-FIBER_MAPPING = {}
+FIBER_FUNCTIONS = {}
 
 
 def replace_with_trampoline(block: ast.AST, fns: Container[str]):
@@ -223,8 +223,9 @@ def fiber(fns: Set[str] = None, *, recursive=True):
     function B in fns, instead of calling the B directly, A will return a call
     operation to a trampoline. The trampoline will call the B with the correct
     arguments. After B finishes executing, the trampoline will resume A,
-    passing the B's return value."""
+    passing B's return value."""
 
+    # TODO(tylerhou): Add FIBER_FUNCTIONS to fns.
     def make_fiber(fn):
         nonlocal fns
         if recursive:
@@ -263,7 +264,9 @@ def fiber(fns: Set[str] = None, *, recursive=True):
 
         tree.body[0] = fn_tree
         compiled = compile_tree(tree, fn)
-        FIBER_MAPPING[fn.__name__] = compiled
+        # TODO(tylerhou): Clean up
+        FIBER_FUNCTIONS[fn.__name__] = (get_tree(fn).body[0], compiled)
+        FIBER_FUNCTIONS[compiled] = (get_tree(fn).body[0], compiled)
         return compiled
 
     if fns is None:
