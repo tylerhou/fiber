@@ -64,9 +64,11 @@ def bar(hello, world):
         pc = 9
         """.strip()
 
-        tree = ast.parse(source).body[0]
-        tree.body, _ = jumps.insert_jumps(
-            tree.body, lambda stmt: isinstance(stmt, ast.Assign))
+        tree = ast.parse(source)
+        fn_tree = tree.body[0]
+        assert isinstance(fn_tree, ast.FunctionDef)
+        fn_tree.body, _ = jumps.insert_jumps(
+            fn_tree.body, lambda stmt: isinstance(stmt, ast.Assign))
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
         self.assertEqual(result, want)
@@ -83,14 +85,19 @@ def fib(pc, n):
     return curr
 """
 
-        tree = ast.parse(source).body[0]
-        tree.body, _ = jumps.insert_jumps(
-            tree.body, lambda stmt: isinstance(stmt, ast.Assign))
+        tree = ast.parse(source)
+        fn_tree = tree.body[0]
+        assert isinstance(fn_tree, ast.FunctionDef)
+        fn_tree.body, _ = jumps.insert_jumps(
+            fn_tree.body, lambda stmt: isinstance(stmt, ast.Assign))
+        fn_tree.name = "fib_transformed"
+
         tree = ast.fix_missing_locations(tree)
-        tree.name = "fib_transformed"
-        transformed = ast.unparse(tree)
-        exec("global fib\n" + source)
-        exec("global fib_transformed\n" + transformed)
+        code = compile(tree, "<string>", "exec")
+        results = {}
+        exec(code, globals(), results)
+        exec(source, globals(), results)
+        fib, fib_transformed = results["fib"], results["fib_transformed"]
         for i in range(100):
             self.assertEqual(fib(0, i), fib_transformed(0, i))
 
