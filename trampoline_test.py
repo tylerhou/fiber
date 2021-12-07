@@ -69,6 +69,24 @@ class TestTrampoline(unittest.TestCase):
         got = trampoline.run(a, [10])
         self.assertEqual(2**5 * 3**5, got)
 
+    def test_edit_distance(self):
+        def edit_distance(first, second):
+            @fiber.fiber(locals=locals())
+            def edit_distance__helper(f, s):
+                if f == len(first):
+                    return len(second) - s
+                if s == len(second):
+                    return len(first) - f
+                if first[f] == second[s]:
+                    return edit_distance__helper(f+1, s+1)
+                del_f = edit_distance__helper(f+1, s) + 1
+                replace = edit_distance__helper(f+1, s+1) + 1
+                del_s = edit_distance__helper(f, s+1) + 1
+                return min(del_f, replace, del_s)
+
+            return trampoline.run(edit_distance__helper, [0, 0])
+        self.assertEqual(3, edit_distance("kitten", "sitting"))
+
 
 if __name__ == '__main__':
     unittest.main()
