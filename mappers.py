@@ -34,12 +34,15 @@ def promote_to_temporary_m(fns: Container[str], name_iter):
 
 def remove_trivial_temporaries_m(fn_ast: ast.AST):
     """Creates a function mapper that removes trivial assignments."""
-    trivial_temps = utils.trivial_temporaries(fn_ast)
-    assignments = utils.find_last_assignments(fn_ast, set(trivial_temps))
-    assignments_values = set(assignments.values())
+    trivial_temps = set(utils.potentially_trivial_temporaries(fn_ast))
+    first_assignment, last_assignment = utils.find_assignments(fn_ast, trivial_temps)
+    trivial_temps = set(t for t in trivial_temps if last_assignment[t] is first_assignment[t])
+    trivial_assignments = set(last_assignment[t] for t in trivial_temps)
+    to_replace = {temp: last_assignment[temp] for temp in trivial_temps if temp in trivial_temps}
+
 
     def remove_trivial_mapper(stmt):
-        return [] if stmt in assignments_values else [utils.replace_variable(stmt, assignments)]
+        return [] if stmt in trivial_assignments else [utils.replace_variable(stmt, to_replace)]
     return remove_trivial_mapper
 
 

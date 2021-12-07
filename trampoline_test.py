@@ -109,6 +109,23 @@ class TestTrampoline(unittest.TestCase):
             return trampoline.run(pop_balloons__helper, [1, len(balloons) - 1])
         self.assertEqual(175, pop_balloons([4, 5, 7]))
 
+    def test_tree_recursion(self):
+        from collections import namedtuple
+        Tree = namedtuple("Tree", ["left", "right"])
+
+        @fiber.fiber(locals=locals())
+        def all_zeroes(tree):
+            if tree == 0:
+                return True
+            if not isinstance(tree, Tree):
+                return False
+            return all_zeroes(tree.left) and all_zeroes(tree.right)
+
+        zeroes = Tree(Tree(0, 0), Tree(Tree(Tree(0, 0), 0), Tree(0, 0)))
+        one = Tree(Tree(0, 0), Tree(Tree(Tree(1, 0), 0), Tree(0, 0)))
+        self.assertTrue(trampoline.run(all_zeroes, [zeroes]))
+        self.assertFalse(trampoline.run(all_zeroes, [one]))
+
 
 if __name__ == '__main__':
     unittest.main()

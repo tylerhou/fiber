@@ -52,13 +52,15 @@ def iter_scope(scope):
             yield from iter_scope(stmt)
 
 
-def trivial_temporaries(fn):
-    """Yields trivial temporaries.
+def potentially_trivial_temporaries(fn):
+    """Yields potentially trivial temporaries.
 
     Temporaries are trivial if they are directly assigned to another variable
     or if they are returned; e.g.
         t = __tmp1__
         return __tmp2__
+
+    If they are assigned to multiple times, then they are not trivial.
     """
     for statement in iter_scope(fn):
         if isinstance(statement, ast.Return) and \
@@ -73,16 +75,18 @@ def trivial_temporaries(fn):
             yield statement.value.id
 
 
-def find_last_assignments(fn, variables):
-    """Finds the last assignment for each variable."""
-    mapping = {}
+def find_assignments(fn, variables):
+    """Finds the first and last assignment for each variable."""
+    first_assignment, last_assignment = {}, {}
     for statement in iter_scope(fn):
         if isinstance(statement, ast.Assign) and \
                 len(statement.targets) == 1 and \
                 isinstance(statement.targets[0], ast.Name) and \
                 (var := statement.targets[0].id) in variables:
-            mapping[var] = statement
-    return mapping
+            if var not in first_assignment:
+                first_assignment[var] = statement
+            last_assignment[var] = statement
+    return first_assignment, last_assignment
 
 
 def replace_variable(statement, assignments):
