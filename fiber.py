@@ -32,10 +32,11 @@ def make_prev_dict(block: ast.AST):
         assert utils.is_block(block)
         for i, stmt in enumerate(block.body):
             if 0 <= i - 1:
+                assert stmt not in prev_dict
                 prev_dict[stmt] = block.body[i - 1]
         for stmt in block.body:
             if utils.is_block(stmt):
-                make_prev_dict(stmt)
+                helper(stmt)
     helper(block)
     return prev_dict
 
@@ -176,11 +177,13 @@ def fiber_locals(fn_tree: ast.FunctionDef):
     local_vars.add(jumps.PC_LOCAL_NAME)
     return local_vars
 
+
 def insert_jumps(fn_tree: ast.FunctionDef, prev_dict, fns):
     prev_dict = make_prev_dict(fn_tree)
     body, _ = jumps.insert_jumps(
         fn_tree.body, jump_to=lambda stmt: needs_jump(stmt, prev_dict, fns))
     return body
+
 
 def lift_locals_to_frame(fn_tree: ast.FunctionDef):
     local_vars = fiber_locals(fn_tree)
@@ -247,7 +250,8 @@ def add_trampoline_returns(block: ast.AST, fns: Container[str]):
             replaced = make_retop_expr(stmt.value)
         else:
             continue
-        assert index + 1 < len(body) and is_pc_assign(body[index + 1])
+        assert index + 1 < len(body)
+        assert is_pc_assign(body[index + 1])
         body[index], body[index + 1] = body[index+1], replaced
 
 

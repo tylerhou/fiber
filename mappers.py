@@ -14,7 +14,8 @@ def map_scope(scope, fn):
     body = []
     for stmt in scope.body:
         body.extend(fn(stmt))
-        if utils.is_scope(stmt):
+        # TODO(tylerhou): Should we map all scopes?
+        if utils.is_supported_scope(stmt):
             body[-1] = map_scope(body[-1], fn)
     kwargs["body"] = body
     return type(scope)(**kwargs)
@@ -31,7 +32,7 @@ def promote_to_temporary_m(fns: Container[str], name_iter):
     return promote_mapper
 
 
-def remove_trivial_m(fn_ast: ast.AST):
+def remove_trivial_temporaries_m(fn_ast: ast.AST):
     """Creates a function mapper that removes trivial assignments."""
     trivial_temps = utils.trivial_temporaries(fn_ast)
     assignments = utils.find_last_assignments(fn_ast, set(trivial_temps))
@@ -63,6 +64,9 @@ def promote_while_cond_m(name_iter):
     def mapper(stmt):
         if not isinstance(stmt, ast.While):
             return [stmt]
+        if isinstance(stmt.test, ast.Name):
+            return [stmt]
+            # TODO(tylerhou): Add a test for this.
         condition_n = next(name_iter)
         test_assign = utils.make_assign(condition_n, stmt.test)
         body = stmt.body + [test_assign]

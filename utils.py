@@ -19,7 +19,7 @@ def is_temporary(name):
     return re.match(dunder_regex, name) != None
 
 
-def is_scope(tree):
+def is_supported_scope(tree):
     return any(isinstance(tree, scope_type) for scope_type in FN_INNER_SCOPE_NODES)
 
 
@@ -33,7 +33,7 @@ def map_expression(statement: ast.AST, fn):
     kwargs = {}
     for field, value in ast.iter_fields(statement):
         result = value
-        if is_scope(statement) and field == "body":
+        if is_supported_scope(statement) and field == "body":
             result = value
         elif isinstance(value, list):
             result = [fn(field, v)
@@ -48,7 +48,7 @@ def iter_scope(scope):
     """Iterates through every statement in the scope, recursively."""
     for stmt in scope.body:
         yield stmt
-        if is_scope(stmt):
+        if is_supported_scope(stmt):
             yield from iter_scope(stmt)
 
 
@@ -109,7 +109,7 @@ def make_assign(target, value):
 
 
 def make_call(func: str, *args):
-    return ast.Call(func=ast.Name(id=func, ctx=ast.Load()), args=args, keywords=[])
+    return ast.Call(func=ast.Name(id=func, ctx=ast.Load()), args=list(args), keywords=[])
 
 
 def make_lookup(name: str):
