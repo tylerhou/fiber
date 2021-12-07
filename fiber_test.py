@@ -6,7 +6,7 @@ import fiber
 class TestFiber(unittest.TestCase):
 
     def test_fib(self):
-        @fiber.fiber()
+        @fiber.fiber(locals=locals())
         def fib(n):
             if n == 0:
                 return 0
@@ -38,7 +38,7 @@ def __fiberfn_fib(frame):
         self.assertEqual(want, fib.__fibercode__)
 
     def test_sum(self):
-        @fiber.fiber()
+        @fiber.fiber(locals=locals())
         def sum(lst, acc):
             if not lst:
                 return acc

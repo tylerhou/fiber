@@ -43,7 +43,7 @@ def foo():
         result = map_function(source, mapper)
         self.assertEqual(result, want)
 
-    def test_remove_trivial_m(self):
+    def test_remove_trivial_temporaries_m(self):
         source = """
 def foo():
     __tmp0__ = bar(2)
@@ -76,13 +76,13 @@ def foo():
 
         tree = ast.parse(source).body[0]
         # Remove trivial needs to preprocess the tree to find trivial variables.
-        mapper = mappers.remove_trivial_m(tree)
+        mapper = mappers.remove_trivial_temporaries_m(tree)
         tree = mappers.map_scope(tree, mapper)
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
         self.assertEqual(result, want)
 
-    def test_remove_trivial_m_tail_call(self):
+    def test_remove_trivial_temporaries_m_tail_call(self):
         source = """
 def sum(lst, acc):
     if not lst:
@@ -98,7 +98,7 @@ def sum(lst, acc):
     return sum(lst[1:], acc + lst[0])
         """.strip()
         tree = ast.parse(source).body[0]
-        mapper = mappers.remove_trivial_m(tree)
+        mapper = mappers.remove_trivial_temporaries_m(tree)
         tree = mappers.map_scope(tree, mapper)
         tree = ast.fix_missing_locations(tree)
         result = ast.unparse(tree)
