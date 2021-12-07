@@ -162,6 +162,6 @@ def _locals_impl(fn: ast.AST):
     yield from helper(fn)
 
 
-def locals(fn: ast.AST):
+def local_vars(fn: ast.AST):
     """Returns a set of all function local variables."""
     return set(_locals_impl(fn))

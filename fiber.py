@@ -172,18 +172,19 @@ def fix_fn_def(fn_tree: ast.FunctionDef, fn):
     fn_tree.args = make_arguments()
 
 
-def compile_tree(tree: ast.AST, fn):
+def compile_tree(tree: ast.AST, fn, locals):
     tree = ast.fix_missing_locations(tree)
     code = compile(tree, f"<fiber> {inspect.getfile(fn)}", "exec")
     results = {}
     # TODO(tylerhou): Correctly get the function's nonlocals.
-    # locls = ChainMap(results, *(inspect.stack(0)[1:]))
-    exec(code, dict([*fn.__globals__.items(), *OP_MAP.items()]), results)
+    last_frame = inspect.stack(0)[2]
+    exec(code, dict([*fn.__globals__.items(), *OP_MAP.items(), *locals.items()]), results)
     results[tree.body[0].name].__fibercode__ = ast.unparse(tree)
     return results[tree.body[0].name]
 
 
 # This is hacky...
+
 FIBER_FUNCTIONS = {}
 
 
@@ -213,7 +214,7 @@ def replace_with_trampoline(block: ast.AST, fns: Container[str]):
         body[index], body[index + 1] = body[index+1], replaced
 
 
-def fiber(fns: Set[str] = None, *, recursive=True):
+def fiber(fns: Set[str] = None, *, locals, recursive=True):
     """Returns a decorator that converts a function to a fiber.
 
     A fiber is a userspace scheduled thread. In this fiber implementation, we
@@ -254,16 +255,16 @@ def fiber(fns: Set[str] = None, *, recursive=True):
                 not is_tail_call(prev_dict[stmt])
         fn_tree.body, _ = jumps.insert_jumps(fn_tree.body, jump_to=needs_jump)
 
-        locals = utils.locals(fn_tree)
-        locals.add(jumps.PC_LOCAL_NAME)
+        local_vars = utils.local_vars(fn_tree)
+        local_vars.add(jumps.PC_LOCAL_NAME)
         fn_tree = mappers.map_scope(fn_tree, mappers.lift_to_frame_m(
-            lambda x: x if x in locals else None))
+            lambda x: x if x in local_vars else None))
 
         replace_with_trampoline(fn_tree, fns)
         fix_fn_def(fn_tree, fn)
 
         tree.body[0] = fn_tree
-        compiled = compile_tree(tree, fn)
+        compiled = compile_tree(tree, fn, locals)
         # TODO(tylerhou): Clean up
         FIBER_FUNCTIONS[fn.__name__] = (get_tree(fn).body[0], compiled)
         FIBER_FUNCTIONS[compiled] = (get_tree(fn).body[0], compiled)
