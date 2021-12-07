@@ -77,15 +77,37 @@ class TestTrampoline(unittest.TestCase):
                     return len(second) - s
                 if s == len(second):
                     return len(first) - f
+
                 if first[f] == second[s]:
                     return edit_distance__helper(f+1, s+1)
+
                 del_f = edit_distance__helper(f+1, s) + 1
                 replace = edit_distance__helper(f+1, s+1) + 1
                 del_s = edit_distance__helper(f, s+1) + 1
+
                 return min(del_f, replace, del_s)
 
             return trampoline.run(edit_distance__helper, [0, 0])
         self.assertEqual(3, edit_distance("kitten", "sitting"))
+
+    def test_pop_balloons(self):
+        def pop_balloons(balloons):
+            balloons = [1] + balloons + [1]
+
+            @fiber.fiber(locals=locals())
+            def pop_balloons__helper(i, j):
+                if i == j:
+                    return 0
+                max_profit = float('-inf')
+                for k in range(i, j):
+                    profit = pop_balloons__helper(i, k)
+                    profit += pop_balloons__helper(k+1, j)
+                    profit += balloons[i-1] * balloons[k] * balloons[j]
+                    max_profit = max(max_profit, profit)
+                return max_profit
+
+            return trampoline.run(pop_balloons__helper, [1, len(balloons) - 1])
+        self.assertEqual(175, pop_balloons([4, 5, 7]))
 
 
 if __name__ == '__main__':
