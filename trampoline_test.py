@@ -16,7 +16,7 @@ class TestTrampoline(unittest.TestCase):
                 return 0
             if n == 1:
                 return 1
-            cache[n] = fib(n-1) + fib(n-2)
+            cache[n] = fib(n-1) + fib(n=n-2)
             return cache[n]
         self.assertEqual(55, trampoline.run(fib, [10], {}))
         self.assertLess(0, trampoline.run(fib, [1002], {}))
@@ -28,10 +28,9 @@ class TestTrampoline(unittest.TestCase):
                 return acc
             return sum(lst[1:], acc + lst[0])
         n = sys.getrecursionlimit() + 1
-        n = 100000
-        print(sum.__fibercode__)
+        n = 10000
         want = n * (n + 1) / 2
-        got = trampoline.run(sum, [list(range(1, n+1)), 0])
+        got = trampoline.run(sum, [list(range(1, n+1)), 0], __max_stack_size=1)
         self.assertEqual(want, got)
 
     def test_sum_recursion_exceeded(self):
@@ -42,7 +41,7 @@ class TestTrampoline(unittest.TestCase):
         n = sys.getrecursionlimit() + 1
         self.assertRaises(RecursionError, sum, list(range(1, n+1)), 0)
 
-    def test_sum2(self):
+    def test_sum_non_tailcall(self):
         @fiber.fiber(locals=locals())
         def sum(lst, acc):
             if not lst:

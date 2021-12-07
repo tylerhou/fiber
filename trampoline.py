@@ -21,28 +21,39 @@ def pos_with_defaults(args: ast.arguments):
     for default in args.defaults:
         yield next(args_iter), default
 
-def bind_frame(args, kwargs, fn_tree: ast.FunctionDef):
-    # TODO(tylerhou): Fix fib(n-1) + fib(n=n-2)
+def bind_frame(positional_args, keyword_args, fn_tree: ast.FunctionDef):
     frame = {}
-    args, fn_args = list(reversed(args)), fn_tree.args
-    for arg, default in pos_with_defaults(fn_args):
-        if not args:
-            if not default:
-                raise TypeError(f"{fn_tree.name} had too few positional arguments")
-            frame[arg.arg] = default
+    # Reverse the list of args because we pop args from the front of the
+    # original list, which is the back of the reversed list.
+    positional_args, fn_args = list(reversed(positional_args)), fn_tree.args
+    for needed_arg, default in pos_with_defaults(fn_args):
+        name: str = needed_arg.arg
+        if positional_args:  # If we can still take args
+            frame[name] = positional_args.pop()
             continue
-        frame[arg.arg] = args.pop()
+
+        if name in keyword_args:
+            if needed_arg in fn_tree.args.posonlyargs:
+                raise TypeError(f"{fn_tree.name}: got positional only argument {name} as a keyword")
+            frame[name] = keyword_args[name]
+            del keyword_args[name]
+            continue
+
+        elif not default:
+            raise TypeError(f"{fn_tree.name} had too few positional arguments")
+        frame[name] = default
 
     if fn_args.vararg:
-        frame[fn_args.vararg.arg] = list(reversed(args))
+        # Unreverse the list as from the beginning.
+        frame[fn_args.vararg.arg] = list(reversed(positional_args))
 
-    fn_kwargs = set(k.arg for k in itertools.chain(fn_args.args, fn_args.kwonlyargs))
-    for kwarg in kwargs:
-        if kwarg not in fn_kwargs:
+    keyword_arg_names = set(k.arg for k in itertools.chain(fn_args.args, fn_args.kwonlyargs))
+    for kwarg in keyword_args:
+        if kwarg not in keyword_arg_names:
             raise TypeError(f"{fn_tree.name} got invalid keyword argument '{kwarg}'")
         if kwarg in frame:
-            raise TypeError(f"{fn_tree.name} got multiple values for argument '{kwarg.arg}'")
-        frame[kwarg] = kwargs[kwarg]
+            raise TypeError(f"{fn_tree.name} got multiple values for argument '{kwarg}'")
+        frame[kwarg] = keyword_args[kwarg]
 
     for kwarg, default in zip(fn_args.kwonlyargs, fn_args.kw_defaults):
         if default is None and kwarg.arg not in frame:
@@ -54,7 +65,7 @@ def bind_frame(args, kwargs, fn_tree: ast.FunctionDef):
     return frame
 
 
-def run(fn, args=None, kwargs=None):
+def run(fn, args=None, kwargs=None, *, __max_stack_size=float('inf')):
     if args is None:
         args = []
     if kwargs is None:
@@ -63,6 +74,7 @@ def run(fn, args=None, kwargs=None):
     frame = bind_frame(args, kwargs, fiber.FIBER_FUNCTIONS[fn][0])
     stack: List[StackFrame] = [StackFrame(frame, fn, None)]
     while True:
+        assert len(stack) <= __max_stack_size
         top = stack[-1]
         op = top.fn(top.frame)
         if isinstance(op, fiber.CallOp):
