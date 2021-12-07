@@ -4,10 +4,12 @@ import unittest
 import fiber
 import trampoline
 
+
 class TestTrampoline(unittest.TestCase):
 
     def test_fib(self):
         cache = {}
+
         @fiber.fiber(locals=locals())
         def fib(n):
             if n in cache:
@@ -51,6 +53,21 @@ class TestTrampoline(unittest.TestCase):
         want = n * (n + 1) / 2 + n
         got = trampoline.run(sum, [list(range(1, n+1)), 0])
         self.assertEqual(want, got)
+
+    def test_mutual_recursion(self):
+        @fiber.fiber(["b"], locals=locals())
+        def a(n):
+            if n == 0:
+                return 1
+            return b(n-1) * 2
+
+        @fiber.fiber(locals=locals())
+        def b(n):
+            if n == 0:
+                return 1
+            return a(n-1) * 3
+        got = trampoline.run(a, [10])
+        self.assertEqual(2**5 * 3**5, got)
 
 
 if __name__ == '__main__':

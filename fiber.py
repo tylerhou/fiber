@@ -18,12 +18,11 @@ def get_tree(fn):
     return ast.parse("\n".join(lines[i:]))
 
 
-def has_fn_call_expression(stmt: ast.AST, fns: Container[str]):
+def fn_call_names(stmt: ast.AST, fns: Container[str]):
     for node in ast.walk(stmt):
         if isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in fns:
-                return True
-    return False
+                yield node.func.id
 
 
 def make_prev_dict(block: ast.AST):
@@ -172,23 +171,61 @@ def fix_fn_def(fn_tree: ast.FunctionDef, fn):
     fn_tree.args = make_arguments()
 
 
-def compile_tree(tree: ast.AST, fn, locals):
+def fiber_locals(fn_tree: ast.FunctionDef):
+    local_vars = utils.local_vars(fn_tree)
+    local_vars.add(jumps.PC_LOCAL_NAME)
+    return local_vars
+
+def insert_jumps(fn_tree: ast.FunctionDef, prev_dict, fns):
+    prev_dict = make_prev_dict(fn_tree)
+    body, _ = jumps.insert_jumps(
+        fn_tree.body, jump_to=lambda stmt: needs_jump(stmt, prev_dict, fns))
+    return body
+
+def lift_locals_to_frame(fn_tree: ast.FunctionDef):
+    local_vars = fiber_locals(fn_tree)
+    return mappers.map_scope(fn_tree, mappers.lift_to_frame_m(
+        name_fn=lambda x: x if x in local_vars else None))
+
+
+def needs_jump(stmt: ast.AST, prev_dict, fns):
+    if not stmt in prev_dict:
+        return False
+
+    # Check whether the child function is a trampoline.
+    fn_calls = list(fn_call_names(prev_dict[stmt], fns))
+    if not fn_calls:
+        return False
+    for name in fn_calls:
+        if not (name in FIBER_FN_NAME_MAP or name in fns):
+            return False
+
+    return not is_tail_call(prev_dict[stmt])
+
+
+def compile_tree(tree: ast.AST, fn, local_vars):
     tree = ast.fix_missing_locations(tree)
     code = compile(tree, f"<fiber> {inspect.getfile(fn)}", "exec")
     results = {}
-    # TODO(tylerhou): Correctly get the function's nonlocals.
-    last_frame = inspect.stack(0)[2]
-    exec(code, dict([*fn.__globals__.items(), *OP_MAP.items(), *locals.items()]), results)
+    exec(code, dict([*fn.__globals__.items(), *
+         OP_MAP.items(), *local_vars.items()]), results)
     results[tree.body[0].name].__fibercode__ = ast.unparse(tree)
     return results[tree.body[0].name]
 
 
 # This is hacky...
 
-FIBER_FUNCTIONS = {}
+@dataclass
+class FiberMetadata:
+    fn_def: ast.FunctionDef
+    fn: Any
 
 
-def replace_with_trampoline(block: ast.AST, fns: Container[str]):
+FIBER_FN_NAME_MAP = {}
+FIBER_FN_COMPILED_MAP = {}
+
+
+def add_trampoline_returns(block: ast.AST, fns: Container[str]):
     """Recursively mutates the block by replacing a function call or a return
     statement with a return to a trampoline. Also moves the PC assignment to
     before the return to the trampoline.
@@ -200,7 +237,7 @@ def replace_with_trampoline(block: ast.AST, fns: Container[str]):
     body = block.body
     for index, stmt in enumerate(list(body)):
         if utils.is_block(stmt):
-            replace_with_trampoline(stmt, fns)
+            add_trampoline_returns(stmt, fns)
             continue
         if matches_callop(stmt, fns):
             replaced = make_callop_expr(stmt.targets[0].slice, stmt.value)
@@ -214,7 +251,7 @@ def replace_with_trampoline(block: ast.AST, fns: Container[str]):
         body[index], body[index + 1] = body[index+1], replaced
 
 
-def fiber(fns: Set[str] = None, *, locals, recursive=True):
+def fiber(fns: Container[str] = None, *, locals, recursive=True):
     """Returns a decorator that converts a function to a fiber.
 
     A fiber is a userspace scheduled thread. In this fiber implementation, we
@@ -224,13 +261,28 @@ def fiber(fns: Set[str] = None, *, locals, recursive=True):
     function B in fns, instead of calling the B directly, A will return a call
     operation to a trampoline. The trampoline will call the B with the correct
     arguments. After B finishes executing, the trampoline will resume A,
-    passing B's return value."""
+    passing B's return value.
 
-    # TODO(tylerhou): Add FIBER_FUNCTIONS to fns.
+    >>> @fiber(locals=locals())
+    ... def fib(n):
+    ...     if n <= 1: return n
+    ...     return fib(n-1) + fib(n-2)
+    ...
+    >>> import trampoline
+    >>> trampoline.run(fib, [10])
+    55
+    """
+
+    if fns is None:
+        fns = set()
+    for fiber_fn in FIBER_FN_NAME_MAP:
+        fns = set(fns)
+        fns.add(fiber_fn)
+    if callable(fns):
+        raise ValueError("Did you forget to call the fiber decorator?")
+
     def make_fiber(fn):
-        nonlocal fns
         if recursive:
-            fns = set(fns)
             fns.add(fn.__name__)
 
         tree = get_tree(fn)
@@ -245,33 +297,22 @@ def fiber(fns: Set[str] = None, *, locals, recursive=True):
         ]
         for t in transforms:
             fn_tree = mappers.map_scope(fn_tree, t)
+
         # These mappers need access to the new tree to preprocess variables.
         fn_tree = mappers.map_scope(fn_tree, mappers.remove_trivial_m(fn_tree))
 
         prev_dict = make_prev_dict(fn_tree)
-        def needs_jump(stmt: ast.AST):
-            return stmt in prev_dict and \
-                has_fn_call_expression(prev_dict[stmt], fns) and \
-                not is_tail_call(prev_dict[stmt])
-        fn_tree.body, _ = jumps.insert_jumps(fn_tree.body, jump_to=needs_jump)
-
-        local_vars = utils.local_vars(fn_tree)
-        local_vars.add(jumps.PC_LOCAL_NAME)
-        fn_tree = mappers.map_scope(fn_tree, mappers.lift_to_frame_m(
-            lambda x: x if x in local_vars else None))
-
-        replace_with_trampoline(fn_tree, fns)
+        fn_tree.body = insert_jumps(fn_tree, prev_dict, fns)
+        fn_tree = lift_locals_to_frame(fn_tree)
+        add_trampoline_returns(fn_tree, fns)
         fix_fn_def(fn_tree, fn)
 
         tree.body[0] = fn_tree
-        compiled = compile_tree(tree, fn, locals)
-        # TODO(tylerhou): Clean up
-        FIBER_FUNCTIONS[fn.__name__] = (get_tree(fn).body[0], compiled)
-        FIBER_FUNCTIONS[compiled] = (get_tree(fn).body[0], compiled)
-        return compiled
+        fiber_fn = compile_tree(tree, fn, locals)
 
-    if fns is None:
-        fns = set()
-    if callable(fns):
-        raise ValueError("Did you forget to call the fiber decorator?")
+        lookup = FiberMetadata(get_tree(fn).body[0], fiber_fn)
+        FIBER_FN_NAME_MAP[fn.__name__] = lookup
+        FIBER_FN_COMPILED_MAP[fiber_fn] = lookup
+        return fiber_fn
+
     return make_fiber

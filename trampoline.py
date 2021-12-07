@@ -13,13 +13,16 @@ class StackFrame:
     fn: Any
     ret_variable: Union[str, None]
 
+
 def pos_with_defaults(args: ast.arguments):
-    num_non_defaults = len(args.posonlyargs) + len(args.args) - len(args.defaults)
+    num_non_defaults = len(args.posonlyargs) + \
+        len(args.args) - len(args.defaults)
     args_iter = itertools.chain(iter(args.posonlyargs), iter(args.args))
     for _ in range(num_non_defaults):
         yield next(args_iter), None
     for default in args.defaults:
         yield next(args_iter), default
+
 
 def bind_frame(positional_args, keyword_args, fn_tree: ast.FunctionDef):
     frame = {}
@@ -34,7 +37,8 @@ def bind_frame(positional_args, keyword_args, fn_tree: ast.FunctionDef):
 
         if name in keyword_args:
             if needed_arg in fn_tree.args.posonlyargs:
-                raise TypeError(f"{fn_tree.name}: got positional only argument {name} as a keyword")
+                raise TypeError(
+                    f"{fn_tree.name}: got positional only argument {name} as a keyword")
             frame[name] = keyword_args[name]
             del keyword_args[name]
             continue
@@ -47,17 +51,21 @@ def bind_frame(positional_args, keyword_args, fn_tree: ast.FunctionDef):
         # Unreverse the list as from the beginning.
         frame[fn_args.vararg.arg] = list(reversed(positional_args))
 
-    keyword_arg_names = set(k.arg for k in itertools.chain(fn_args.args, fn_args.kwonlyargs))
+    keyword_arg_names = set(k.arg for k in itertools.chain(
+        fn_args.args, fn_args.kwonlyargs))
     for kwarg in keyword_args:
         if kwarg not in keyword_arg_names:
-            raise TypeError(f"{fn_tree.name} got invalid keyword argument '{kwarg}'")
+            raise TypeError(
+                f"{fn_tree.name} got invalid keyword argument '{kwarg}'")
         if kwarg in frame:
-            raise TypeError(f"{fn_tree.name} got multiple values for argument '{kwarg}'")
+            raise TypeError(
+                f"{fn_tree.name} got multiple values for argument '{kwarg}'")
         frame[kwarg] = keyword_args[kwarg]
 
     for kwarg, default in zip(fn_args.kwonlyargs, fn_args.kw_defaults):
         if default is None and kwarg.arg not in frame:
-            raise TypeError(f"{fn_tree.name} missing required keyword only argument '{kwarg.arg}'")
+            raise TypeError(
+                f"{fn_tree.name} missing required keyword only argument '{kwarg.arg}'")
         if default is not None and kwarg.arg not in frame:
             frame[kwarg.arg] = ast.literal_eval(default)
 
@@ -71,22 +79,22 @@ def run(fn, args=None, kwargs=None, *, __max_stack_size=float('inf')):
     if kwargs is None:
         kwargs = {}
 
-    frame = bind_frame(args, kwargs, fiber.FIBER_FUNCTIONS[fn][0])
+    frame = bind_frame(args, kwargs, fiber.FIBER_FN_COMPILED_MAP[fn].fn_def)
     stack: List[StackFrame] = [StackFrame(frame, fn, None)]
     while True:
         assert len(stack) <= __max_stack_size
         top = stack[-1]
         op = top.fn(top.frame)
         if isinstance(op, fiber.CallOp):
-            fn_tree, fiberfn = fiber.FIBER_FUNCTIONS[op.func]
+            metadata = fiber.FIBER_FN_NAME_MAP[op.func]
             top.ret_variable = op.ret_variable
-            frame = bind_frame(op.args, op.kwargs, fn_tree)
-            stack.append(StackFrame(frame, fiberfn, None))
+            frame = bind_frame(op.args, op.kwargs, metadata.fn_def)
+            stack.append(StackFrame(frame, metadata.fn, None))
         elif isinstance(op, fiber.TailCallOp):
             stack.pop()  # Tail call, so we can discard the frame.
-            fn_tree, fiberfn = fiber.FIBER_FUNCTIONS[op.func]
-            frame = bind_frame(op.args, op.kwargs, fn_tree)
-            stack.append(StackFrame(frame, fiberfn, None))
+            metadata = fiber.FIBER_FN_NAME_MAP[op.func]
+            frame = bind_frame(op.args, op.kwargs, metadata.fn_def)
+            stack.append(StackFrame(frame, metadata.fn, None))
         elif isinstance(op, fiber.RetOp):
             stack.pop()
             if not stack:
