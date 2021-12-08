@@ -275,11 +275,12 @@ def fiber(fns: Container[str] = None, *, locals, recursive=True):
     A fiber is a userspace scheduled thread. In this fiber implementation, we
     yield to the userspace scheduler whenever a listed function is called.
 
-    Suppose we are executing a function A. When A reaches a call to some
-    function B in fns, instead of calling the B directly, A will return a call
-    operation to a trampoline. The trampoline will call the B with the correct
-    arguments. After B finishes executing, the trampoline will resume A,
-    passing B's return value.
+    Using the trampoline scheduler, we can functions that recurse arbitrarily
+    deep by simulating the call stack on the heap: Suppose we are executing a
+    function A. When A reaches a call to some function B in fns, instead of
+    calling the B directly, A will return a call operation to a trampoline. The
+    trampoline will call the B with the correct arguments. After B finishes
+    executing, the trampoline will resume A, passing B's return value.
 
     >>> @fiber(locals=locals())
     ... def fib(n):
@@ -317,7 +318,7 @@ def fiber(fns: Container[str] = None, *, locals, recursive=True):
             fn_tree = mappers.map_scope(fn_tree, t)
 
         # These mappers need access to the new tree to preprocess variables.
-        fn_tree = mappers.map_scope(fn_tree, mappers.remove_trivial_m(fn_tree))
+        fn_tree = mappers.map_scope(fn_tree, mappers.remove_trivial_temporaries_m(fn_tree))
 
         prev_dict = make_prev_dict(fn_tree)
         fn_tree.body = insert_jumps(fn_tree, prev_dict, fns)
