@@ -44,7 +44,6 @@ class TestTrampoline(unittest.TestCase):
                 return acc
             return sum(lst[1:], acc + lst[0])
         n = sys.getrecursionlimit() + 1
-        n = 10000
         want = n * (n + 1) / 2
         got = trampoline.run(sum, [list(range(1, n+1)), 0], __max_stack_size=1)
         self.assertEqual(want, got)
