@@ -1,11 +1,11 @@
 # Fiber
 
-Fiber implements an proof-of-concept Python decorator that converts a function
-to a userspace coroutine that stores local variables on the stack, and can be
-resumed at specific call points.
+Fiber implements an proof-of-concept Python decorator that rewrites a function
+so that it can be paused and resumed (by moving stack variables to a heap frame
+and adding if statements to simulate jumps/gotos to specific lines of code).
 
-Using a trampoline function that simulates the call stack on the heap, we can
-call functions that recurse arbitrarily deeply without stack overflowing
+Then, using a trampoline function that simulates the call stack on the heap, we
+can call functions that recurse arbitrarily deeply without stack overflowing
 (assuming we don't run out of heap memory).
 
 ```python3
@@ -26,7 +26,7 @@ def fib(n):
 print(sys.getrecursionlimit())  # 1000 by default
 
 # https://www.wolframalpha.com/input/?i=fib%281010%29+mod+10**5
-print(trampoline.run(cache, [1010]) % 10 ** 5) # 74305
+print(trampoline.run(fib, [1010]) % 10 ** 5) # 74305
 ```
 
 Please do not use this in production.
